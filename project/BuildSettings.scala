@@ -11,24 +11,19 @@ import com.typesafe.tools.mima.plugin.MimaKeys._
 import com.typesafe.tools.mima.plugin.MimaPlugin._
 import de.heikoseeberger.sbtheader.AutomateHeaderPlugin
 import de.heikoseeberger.sbtheader.HeaderPlugin.autoImport._
+import interplay._
 import interplay.Omnidoc.autoImport._
 import interplay.PlayBuildBase.autoImport._
 import interplay.ScalaVersions._
-import interplay._
-import sbt.Keys.version
-import sbt.Keys._
-import sbt.ScriptedPlugin.{ autoImport => ScriptedImport }
-import sbt.Resolver
 import sbt._
+import sbt.Keys._
+import sbt.ScriptedPlugin.autoImport._
 import sbtwhitesource.WhiteSourcePlugin.autoImport._
 
 import scala.sys.process.stringToProcess
 import scala.util.control.NonFatal
 
 object BuildSettings {
-
-  // Argument for setting size of permgen space or meta space for all forked processes
-  val maxMetaspace = s"-XX:MaxMetaspaceSize=384m"
 
   val snapshotBranch: String = {
     try {
@@ -90,7 +85,7 @@ object BuildSettings {
 
   /** These settings are used by all projects. */
   def playCommonSettings: Seq[Setting[_]] = Def.settings(
-    scalaVersion := ScalaVersions.scala212,
+    scalaVersion := scala212,
     fileHeaderSettings,
     homepage := Some(url("https://playframework.com")),
     ivyLoggingLevel := UpdateLogging.DownloadOnly,
@@ -112,7 +107,7 @@ object BuildSettings {
     fork in Test := true,
     parallelExecution in Test := false,
     testListeners in (Test, test) := Nil,
-    javaOptions in Test ++= Seq(maxMetaspace, "-Xmx512m", "-Xms128m"),
+    javaOptions in Test ++= Seq("-XX:MaxMetaspaceSize=384m", "-Xmx512m", "-Xms128m"),
     testOptions ++= Seq(
       Tests.Argument(TestFrameworks.Specs2, "showtimes"),
       Tests.Argument(TestFrameworks.JUnit, "-v")
@@ -525,6 +520,13 @@ object BuildSettings {
       ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.ObjectMapperProvider.this"),
       // Add configuration for temporary file directory
       ProblemFilters.exclude[DirectMissingMethodProblem]("play.api.libs.Files#DefaultTemporaryFileCreator.this"),
+      // Return type of filename function parameter changed from String to Option[String]
+      ProblemFilters.exclude[IncompatibleSignatureProblem]("play.api.mvc.Results#Status.sendFile"),
+      ProblemFilters.exclude[IncompatibleSignatureProblem]("play.api.mvc.Results#Status.sendFile$default$3"),
+      ProblemFilters.exclude[IncompatibleSignatureProblem]("play.api.mvc.Results#Status.sendPath"),
+      ProblemFilters.exclude[IncompatibleSignatureProblem]("play.api.mvc.Results#Status.sendPath$default$3"),
+      // Add contentType param (which defaults to None) to Results.chunked(...) like Results.streamed(...) already has
+      ProblemFilters.exclude[DirectMissingMethodProblem]("play.api.mvc.Results#Status.chunked"),
     ),
     unmanagedSourceDirectories in Compile += {
       val suffix = CrossVersion.partialVersion(scalaVersion.value) match {
@@ -537,11 +539,6 @@ object BuildSettings {
     Docs.apiDocsInclude := true
   )
 
-  def javaVersionSettings(version: String): Seq[Setting[_]] = Seq(
-    javacOptions ++= Seq("-source", version, "-target", version),
-    javacOptions in doc := Seq("-source", version)
-  )
-
   /** A project that is shared between the sbt runtime and the Play runtime. */
   def PlayNonCrossBuiltProject(name: String, dir: String): Project = {
     Project(name, file(dir))
@@ -551,7 +548,7 @@ object BuildSettings {
       .settings(
         autoScalaLibrary := false,
         crossPaths := false,
-        crossScalaVersions := Seq(ScalaVersions.scala212)
+        crossScalaVersions := Seq(scala212)
       )
   }
 
@@ -580,37 +577,41 @@ object BuildSettings {
       )
   }
 
-  def omnidocSettings: Seq[Setting[_]] = Omnidoc.projectSettings ++ Seq(
+  def omnidocSettings: Seq[Setting[_]] = Def.settings(
+    Omnidoc.projectSettings,
     omnidocSnapshotBranch := snapshotBranch,
     omnidocPathPrefix := ""
   )
 
   def playScriptedSettings: Seq[Setting[_]] = Seq(
-    ScriptedImport.scripted := ScriptedImport.scripted.tag(Tags.Test).evaluated,
-    ScriptedImport.scriptedLaunchOpts ++= Seq(
-      "-Xmx768m",
-      maxMetaspace,
-      "-Dscala.version=" + sys.props
-        .get("scripted.scala.version")
-        .orElse(sys.props.get("scala.version"))
-        .getOrElse("2.12.8")
-    )
+    // Don't automatically publish anything.
+    // The test-sbt-plugins-* scripts publish before running the scripted tests.
+    // When developing the sbt plugins:
+    // * run a publishLocal in the root project to get everything
+    // * run a publishLocal in the changes projects for fast feedback loops
+    scriptedDependencies := (()), // drop Test/compile & publishLocal
+    scriptedBufferLog := false,
+    scriptedLaunchOpts ++= Seq(
+      s"-Dsbt.boot.directory=${file(sys.props("user.home")) / ".sbt" / "boot"}",
+      "-Xmx512m",
+      "-XX:MaxMetaspaceSize=512m",
+      s"-Dscala.version=$scala212",
+    ),
+    scripted := scripted.tag(Tags.Test).evaluated,
   )
 
-  def playFullScriptedSettings: Seq[Setting[_]] =
-    Seq(
-      ScriptedImport.scriptedLaunchOpts += s"-Dproject.version=${version.value}"
-    ) ++ playScriptedSettings
-
-  def disablePublishing = Seq[Setting[_]](
+  def disablePublishing = Def.settings(
+    disableNonLocalPublishing,
     // This setting will work for sbt 1, but not 0.13. For 0.13 it only affects
     // `compile` and `update` tasks.
     skip in publish := true,
+    publishLocal := {},
+  )
+  def disableNonLocalPublishing = Def.settings(
     // For sbt 0.13 this is what we need to avoid publishing. These settings can
     // be removed when we move to sbt 1.
     PgpKeys.publishSigned := {},
     publish := {},
-    publishLocal := {},
     // We also don't need to track dependencies for unpublished projects
     // so we need to disable WhiteSource plugin.
     whitesourceIgnore := true

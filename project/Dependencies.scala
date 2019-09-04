@@ -13,7 +13,7 @@ object Dependencies {
 
   val sslConfig = "com.typesafe" %% "ssl-config-core" % "0.4.0"
 
-  val playJsonVersion = "2.8.0-M4"
+  val playJsonVersion = "2.8.0-M5"
 
   val logback = "ch.qos.logback" % "logback-classic" % "1.2.3"
 
@@ -49,11 +49,11 @@ object Dependencies {
 
   val playJson = "com.typesafe.play" %% "play-json" % playJsonVersion
 
-  val slf4jVersion = "1.7.27"
+  val slf4jVersion = "1.7.28"
   val slf4j        = Seq("slf4j-api", "jul-to-slf4j", "jcl-over-slf4j").map("org.slf4j" % _ % slf4jVersion)
   val slf4jSimple  = "org.slf4j" % "slf4j-simple" % slf4jVersion
 
-  val guava      = "com.google.guava"         % "guava"        % "28.0-jre"
+  val guava      = "com.google.guava"         % "guava"        % "28.1-jre"
   val findBugs   = "com.google.code.findbugs" % "jsr305"       % "3.0.2" // Needed by guava
   val mockitoAll = "org.mockito"              % "mockito-core" % "3.0.0"
 
@@ -140,22 +140,24 @@ object Dependencies {
 
   def runtime(scalaVersion: String) =
     slf4j ++
-      Seq("akka-actor", "akka-slf4j", "akka-serialization-jackson").map("com.typesafe.akka" %% _ % akkaVersion) ++
-      Seq("akka-testkit").map("com.typesafe.akka"                                           %% _ % akkaVersion % Test) ++
+      Seq("akka-actor", "akka-actor-typed", "akka-slf4j", "akka-serialization-jackson")
+        .map("com.typesafe.akka" %% _ % akkaVersion) ++
+      Seq("akka-testkit", "akka-actor-testkit-typed")
+        .map("com.typesafe.akka" %% _ % akkaVersion % Test) ++
       jacksons ++
       Seq(
         playJson,
         guava,
         jjwt,
         jaxbApi,
-        "jakarta.transaction" % "jakarta.transaction-api" % "1.3.2",
+        "jakarta.transaction" % "jakarta.transaction-api" % "1.3.3",
         "javax.inject"        % "javax.inject"            % "1",
         scalaReflect(scalaVersion),
         scalaJava8Compat,
         sslConfig
       ) ++ scalaParserCombinators(scalaVersion) ++ specs2Deps.map(_ % Test) ++ javaTestDeps
 
-  val nettyVersion = "4.1.38.Final"
+  val nettyVersion = "4.1.39.Final"
 
   val netty = Seq(
     "com.typesafe.netty" % "netty-reactive-streams-http" % "2.0.3",
@@ -228,7 +230,7 @@ object Dependencies {
   ) ++ playdocWebjarDependencies
 
   val streamsDependencies = Seq(
-    "org.reactivestreams" % "reactive-streams" % "1.0.2",
+    "org.reactivestreams" % "reactive-streams" % "1.0.3",
     "com.typesafe.akka"   %% "akka-stream"     % akkaVersion,
     scalaJava8Compat
   ) ++ specs2Deps.map(_ % Test) ++ javaTestDeps
@@ -249,7 +251,7 @@ object Dependencies {
     // slowing down the build. So the open range deps were removed and we can re-add
     // them using a specific version. Using an open range is also not good for the
     // local cache.
-    ("org.seleniumhq.selenium" % "htmlunit-driver" % "2.35.1").excludeAll(
+    ("org.seleniumhq.selenium" % "htmlunit-driver" % "2.36.0").excludeAll(
       ExclusionRule("org.seleniumhq.selenium", "selenium-api"),
       ExclusionRule("org.seleniumhq.selenium", "selenium-support")
     ),
@@ -276,7 +278,7 @@ object Dependencies {
     "com.github.ben-manes.caffeine" % "jcache"   % caffeineVersion
   ) ++ jcacheApi
 
-  val playWsStandaloneVersion = "2.1.0-M3"
+  val playWsStandaloneVersion = "2.1.0-M4"
   val playWsDeps = Seq(
     "com.typesafe.play"                        %% "play-ws-standalone" % playWsStandaloneVersion,
     "com.typesafe.play"                        %% "play-ws-standalone-xml" % playWsStandaloneVersion,
@@ -308,8 +310,8 @@ object Dependencies {
  * How to use this:
  *    $ sbt -J-XX:+UnlockCommercialFeatures -J-XX:+FlightRecorder -Dakka-http.sources=$HOME/code/akka-http '; project Play-Akka-Http-Server; test:run'
  *
- * Make sure Akka-HTTP has 2.12 as the FIRST version (or that scalaVersion := "2.12.8", otherwise it won't find the artifact
- *    crossScalaVersions := Seq("2.12.8", "2.11.12"),
+ * Make sure Akka-HTTP has 2.12 as the FIRST version (or that scalaVersion := "2.12.9", otherwise it won't find the artifact
+ *    crossScalaVersions := Seq("2.12.9", "2.11.12"),
  */
 object AkkaDependency {
   // Needs to be a URI like git://github.com/akka/akka.git#master or file:///xyz/akka
